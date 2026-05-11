@@ -139,7 +139,7 @@
             </div>
         </div>
 
-        <div id="pause-overlay" class="overlay">
+        <div id="pause-overlay" class="overlay" onclick="togglePause()">
             <h2>PAUSED</h2>
             <p>Click or Press ESC to Resume Combat</p>
         </div>
@@ -178,9 +178,9 @@
         x: 450, y: 325, score: 0, hp: 100, maxHp: 100, shield: 0, shieldMax: 0,
         baseDamage: 0.6, critRate: 0.05, dodgeRate: 0.01,
         fireRate: 200, pierce: 1, range: 750, regen: 0, 
-        dartLevel: 0, dartDamage: 5, dartCooldown: 10000,
+        dartLevel: 0, dartDamage: 5, dartCooldown: 5000,
         highRound: 1, level: 1, xp: 0,
-        inventory: [] // 存储已购技能名
+        inventory: [] 
     };
 
     let enemies = [], bullets = [], darts = [], keys = {};
@@ -205,7 +205,7 @@
     window.startGame = () => {
         document.getElementById('main-menu').style.display = 'none';
         gameState = "BATTLE";
-        player.shieldMax = player.shield; // 回合开始前锁定当前护盾作为显示上限参考
+        player.shieldMax = player.shield; 
         lastTick = Date.now();
     };
 
@@ -223,7 +223,6 @@
         { n: "God Protocol", d: "Ultimate augmentation: massive stats boost.", v: () => { player.range *= 1.5; player.pierce += 2; player.baseDamage += 0.5; }, r: 1, p: 40 }
     ];
 
-    // Firebase 监听
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             const snap = await getDoc(doc(db, "pixel_stats", user.uid));
@@ -234,8 +233,20 @@
                 player.xp = d.xp || 0;
                 round = d.lastRound || 1;
                 player.score = d.points || 0;
-                // ★ 新增：读取已购技能列表
                 player.inventory = d.inventory || [];
+                // 同步战斗属性
+                player.hp = d.hp ?? 100;
+                player.maxHp = d.maxHp ?? 100;
+                player.shield = d.shield ?? 0;
+                player.baseDamage = d.baseDamage ?? 0.6;
+                player.critRate = d.critRate ?? 0.05;
+                player.fireRate = d.fireRate ?? 200;
+                player.pierce = d.pierce ?? 1;
+                player.range = d.range ?? 750;
+                player.regen = d.regen ?? 0;
+                player.dartLevel = d.dartLevel ?? 0;
+                player.dartDamage = d.dartDamage ?? 5;
+                player.dartCooldown = d.dartCooldown ?? 5000;
             }
             updateNameUI();
             updateMenuUI();
@@ -261,15 +272,26 @@
                 xp: Math.floor(player.xp),
                 lastRound: round,
                 points: player.score,
-                // ★ 新增：同步已购技能列表
-                inventory: player.inventory
+                inventory: player.inventory,
+                // 保存所有属性
+                hp: player.hp,
+                maxHp: player.maxHp,
+                shield: player.shield,
+                baseDamage: player.baseDamage,
+                critRate: player.critRate,
+                fireRate: player.fireRate,
+                pierce: player.pierce,
+                range: player.range,
+                regen: player.regen,
+                dartLevel: player.dartLevel,
+                dartDamage: player.dartDamage,
+                dartCooldown: player.dartCooldown
             }, { merge: true });
             player.highRound = currentBestRound;
             updateNameUI();
         }
     }
 
-    // UI 更新函数
     function updateNameUI() {
         if (auth.currentUser) {
             const name = auth.currentUser.displayName.split(' ')[0].toUpperCase();
@@ -313,7 +335,7 @@
                 if (player.score >= skill.p) {
                     player.score -= skill.p;
                     skill.v();
-                    player.inventory.push(skill.n); // 记录技能
+                    player.inventory.push(skill.n); 
                     card.classList.add("sold-out");
                     card.onclick = null;
                     pointsDisplay.innerText = player.score;
@@ -337,14 +359,15 @@
         }
     }
 
-    refreshBtn.onclick = () => {
+    refreshBtn.onclick = (e) => {
+        e.stopPropagation();
         const cost = refreshCosts[refreshUsed];
         if (player.score >= cost && refreshUsed < 5) { player.score -= cost; refreshUsed++; updateShopUI(); }
     };
 
     document.getElementById("confirm-btn").onclick = () => {
         shopOverlay.style.display = "none"; gameState = "TRANSITION";
-        player.shieldMax = player.shield; // 回合开始，记录新护盾基准
+        player.shieldMax = player.shield; 
         setTimeout(() => { 
             enemies = []; bullets = []; darts = []; timeLeft = 20; refreshUsed = 0; tempBuff.active = false;
             gameState = "BATTLE"; lastTick = Date.now();
@@ -353,6 +376,8 @@
 
     // 输入处理
     const inventoryOverlay = document.getElementById("inventory-overlay");
+    const pauseOverlay = document.getElementById("pause-overlay");
+
     window.onkeydown = e => {
         keys[e.code] = true;
         if (e.code === "Escape") togglePause();
@@ -363,14 +388,19 @@
         if (e.code === "Tab") inventoryOverlay.style.display = "none";
     };
 
-    function togglePause() {
-        const pauseOverlay = document.getElementById("pause-overlay");
+    window.togglePause = function() {
         if (["SHOP", "TRANSITION", "MENU"].includes(gameState)) return;
-        if (gameState === "BATTLE") { gameState = "PAUSED"; pauseOverlay.style.display = "flex"; }
-        else if (gameState === "PAUSED") { gameState = "BATTLE"; pauseOverlay.style.display = "none"; lastTick = Date.now(); }
-    }
+        if (gameState === "BATTLE") { 
+            gameState = "PAUSED"; 
+            pauseOverlay.style.display = "flex"; 
+        }
+        else if (gameState === "PAUSED") { 
+            gameState = "BATTLE"; 
+            pauseOverlay.style.display = "none"; 
+            lastTick = Date.now(); 
+        }
+    };
 
-    // TAB 技能显示逻辑
     function showInventory() {
         inventoryOverlay.style.display = "block";
         const grid = document.getElementById("stat-grid");
@@ -392,12 +422,14 @@
         ).join('');
     }
 
-    // 核心循环
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     let mousePos = {x:0, y:0}, isMouseDown = false, lastShot = 0;
 
-    canvas.onmousedown = () => isMouseDown = true;
+    canvas.onmousedown = () => {
+        if (gameState === "BATTLE") isMouseDown = true;
+        else if (gameState === "PAUSED") togglePause();
+    };
     window.onmouseup = () => isMouseDown = false;
     canvas.onmousemove = e => { const r = canvas.getBoundingClientRect(); mousePos.x = e.clientX-r.left; mousePos.y = e.clientY-r.top; };
 
@@ -414,32 +446,32 @@
         if (gameState !== "BATTLE") return;
         let now = Date.now();
 
-        // 飞镖逻辑
+        // 飞镖生成
         if (player.dartLevel > 0 && now - lastDartTime > player.dartCooldown) {
             let target = enemies.sort((a,b) => b.hp - a.hp)[0];
             if (target) {
                 for (let i = 0; i < player.dartLevel; i++) {
-                    darts.push({ startX: player.x, startY: player.y, x: player.x, y: player.y, target: target, life: 0, maxLife: 70, curveDir: (Math.random() - 0.5) * 120 });
+                    darts.push({ startX: player.x, startY: player.y, x: player.x, y: player.y, target: target, life: 0, maxLife: 35, curveDir: (Math.random() - 0.5) * 120 });
                 }
             }
             lastDartTime = now;
         }
 
-        // 计时与自然恢复
+        // 计时与同步
         if (now - lastTick >= 1000) {
             timeLeft--; lastTick = now;
             player.hp = Math.min(player.maxHp, player.hp + player.regen + (tempBuff.active ? tempBuff.reg : 0));
             if (timeLeft <= 0) {
                 player.xp += (round <= 10 ? [0,10,12,14,16,20,24,26,30,34,40][round] : 40 + (round-10)*4);
                 while (player.xp >= 50 * Math.pow(1.25, player.level - 1)) { player.xp -= 50 * Math.pow(1.25, player.level - 1); player.level++; }
-                updateXPBar(); syncCloud();
+                updateXPBar(); 
+                syncCloud(); // 每回合结束保存所有状态
                 gameState = "SHOP"; round++; updateMenuUI();
                 shopOverlay.style.display = "flex"; updateShopUI();
                 return;
             }
         }
 
-        // 射击
         let fr = player.fireRate / (tempBuff.active ? tempBuff.fr : 1);
         if (isMouseDown && now - lastShot > fr) {
             let dx = mousePos.x - player.x, dy = mousePos.y - player.y, dist = Math.hypot(dx,dy);
@@ -447,12 +479,14 @@
             lastShot = now;
         }
 
-        // 移动
+        // 移动限制（视角以内）
         const ms = 3.6;
         if(keys["KeyW"]) player.y -= ms; if(keys["KeyS"]) player.y += ms;
         if(keys["KeyA"]) player.x -= ms; if(keys["KeyD"]) player.x += ms;
+        player.x = Math.max(20, Math.min(880, player.x));
+        player.y = Math.max(20, Math.min(630, player.y));
 
-        // 飞镖更新
+        // 飞镖更新 (含路径伤害)
         for(let i=darts.length-1; i>=0; i--) {
             let d = darts[i]; d.life++; let t = d.life / d.maxLife;
             if (t >= 1) { d.target.hp -= player.dartDamage; darts.splice(i, 1); continue; }
@@ -460,9 +494,13 @@
             let angle = Math.atan2(d.target.y - d.startY, d.target.x - d.startX);
             let offset = Math.sin(Math.PI * t) * d.curveDir;
             d.x = bx + Math.cos(angle + Math.PI/2) * offset; d.y = by + Math.sin(angle + Math.PI/2) * offset;
+            
+            // 路径碰撞检测
+            enemies.forEach(e => {
+                if(Math.hypot(d.x - e.x, d.y - e.y) < 25) e.hp -= (player.dartDamage * 0.2); 
+            });
         }
 
-        // 子弹更新
         for(let i=bullets.length-1; i>=0; i--) {
             let b = bullets[i]; b.x += b.sx; b.y += b.sy; b.d += 18;
             if(b.d > player.range) { bullets.splice(i,1); continue; }
@@ -475,13 +513,11 @@
             if(b.p <= 0) bullets.splice(i,1);
         }
 
-        // 敌人更新
         enemies.forEach((e, i) => {
             let dx = player.x-e.x, dy = player.y-e.y, dist = Math.hypot(dx,dy);
             e.x += (dx/dist)*e.speed; e.y += (dy/dist)*e.speed;
             if (dist < 22 && now - e.atkTimer > 500) {
                 if (Math.random() > player.dodgeRate) {
-                    // 护盾扣减
                     if (player.shield > 0) player.shield = Math.max(0, player.shield - 5 * e.maxHp);
                     else player.hp -= 5.0 * e.maxHp;
                 }
@@ -498,8 +534,10 @@
         if (gameState === "SHOP" || gameState === "MENU") return;
         
         darts.forEach(d => {
-            ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.life * 0.3); 
-            ctx.fillStyle="#00ffcc"; ctx.fillRect(-6, -6, 12, 12); ctx.restore();
+            ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.life * 0.6); 
+            ctx.fillStyle="#00ffcc"; ctx.fillRect(-8, -8, 16, 16); 
+            ctx.strokeStyle="#fff"; ctx.strokeRect(-8, -8, 16, 16);
+            ctx.restore();
         });
         bullets.forEach(b => { ctx.fillStyle="#f1c40f"; ctx.fillRect(b.x, b.y, 6, 6); });
         enemies.forEach(e => {
@@ -510,17 +548,14 @@
         
         ctx.fillStyle="#3498db"; ctx.fillRect(player.x, player.y, 20, 20);
         
-        // UI
         ctx.fillStyle="#fff"; ctx.font="bold 20px monospace";
         ctx.fillText(`WAVE: ${round} | PT: ${player.score} | TIME: ${timeLeft}s`, 20, 35);
         
-        // 血条 (显示数值)
         ctx.fillStyle="#333"; ctx.fillRect(20, 55, 250, 20);
         ctx.fillStyle="#f44"; ctx.fillRect(20, 55, 250*(player.hp/player.maxHp), 20);
         ctx.fillStyle="#fff"; ctx.font="bold 12px Arial";
         ctx.fillText(`HP: ${Math.ceil(player.hp)} / ${player.maxHp}`, 30, 70);
         
-        // 护盾条 (显示绝对值)
         if(player.shield > 0) {
             const sMax = Math.max(player.shield, player.shieldMax);
             ctx.fillStyle="#111"; ctx.fillRect(20, 85, 250, 15);
