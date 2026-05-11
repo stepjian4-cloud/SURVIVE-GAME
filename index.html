@@ -69,7 +69,6 @@
         #pause-overlay { background: rgba(0,0,0,0.85); justify-content: center; cursor: pointer; }
         #pause-overlay h2 { font-size: 64px; color: #f1c40f; margin-bottom: 10px; letter-spacing: 5px; }
 
-        /* 新增：技能清单 (TAB) 样式 */
         #inventory-overlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 500px; background: rgba(0, 0, 0, 0.95); border: 2px solid #f1c40f;
@@ -147,10 +146,8 @@
 
         <div id="inventory-overlay">
             <h3>OPERATOR STATUS & SKILLS</h3>
-            <div class="stat-grid" id="stat-grid">
-                </div>
-            <div class="skill-list-box" id="skill-list-box">
-                </div>
+            <div class="stat-grid" id="stat-grid"></div>
+            <div class="skill-list-box" id="skill-list-box"></div>
         </div>
 
         <canvas id="game" width="900" height="650"></canvas>
@@ -237,6 +234,8 @@
                 player.xp = d.xp || 0;
                 round = d.lastRound || 1;
                 player.score = d.points || 0;
+                // ★ 新增：读取已购技能列表
+                player.inventory = d.inventory || [];
             }
             updateNameUI();
             updateMenuUI();
@@ -261,7 +260,9 @@
                 level: player.level,
                 xp: Math.floor(player.xp),
                 lastRound: round,
-                points: player.score
+                points: player.score,
+                // ★ 新增：同步已购技能列表
+                inventory: player.inventory
             }, { merge: true });
             player.highRound = currentBestRound;
             updateNameUI();
@@ -375,7 +376,6 @@
         const grid = document.getElementById("stat-grid");
         const list = document.getElementById("skill-list-box");
         
-        // 计算汇总属性
         grid.innerHTML = `
             <div>DMG MULT: x${(player.baseDamage/0.6).toFixed(2)}</div>
             <div>CRIT RATE: ${(player.critRate*100).toFixed(0)}%</div>
@@ -385,7 +385,6 @@
             <div>DART DMG: ${player.dartDamage}</div>
         `;
         
-        // 合并显示同名技能
         const counts = {};
         player.inventory.forEach(x => counts[x] = (counts[x] || 0) + 1);
         list.innerHTML = Object.entries(counts).map(([name, count]) => 
