@@ -30,7 +30,6 @@
         }
         .start-btn:hover, .menu-btn:hover { background: #2ecc71; transform: scale(1.08); }
 
-        /* Save Menu Styles */
         .save-list { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 80%; margin-bottom: 50px; }
         .save-slot { width: 80px; height: 80px; background: #222; border: 2px solid #444; display: flex; align-items: center; justify-content: center; font-size: 30px; color: #fff; cursor: pointer; border-radius: 10px; }
         .save-slot.active { border-color: #f1c40f; box-shadow: 0 0 15px #f1c40f; }
@@ -39,7 +38,7 @@
         .enter-btn { background: #27ae60; color: white; padding: 10px 30px; border-radius: 5px; cursor: pointer; border: none; }
 
         .exit-level-btn {
-            position: absolute; top: 10px; left: 10px; z-index: 400;
+            position: absolute; top: 10px; left: 10px; z-index: 600;
             background: #c0392b; color: white; border: none; padding: 8px 15px;
             border-radius: 5px; cursor: pointer; font-weight: bold; display: none;
         }
@@ -65,7 +64,7 @@
         .xp-bar-fill { height: 100%; background: #fff; width: 0%; transition: 0.3s; }
         .xp-text { color: #fff; font-size: 10px; margin-bottom: 5px; font-family: monospace; display: flex; justify-content: space-between; }
 
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; color: white; z-index: 100; padding: 30px; box-sizing: border-box; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; color: white; z-index: 550; padding: 30px; box-sizing: border-box; }
         #shop-overlay { background: rgba(0,0,0,0.98); }
         .shop-header { width: 95%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 2px solid #444; padding-bottom: 15px; }
         .shop-header h1 { font-size: 42px; color: #f1c40f; margin: 0; letter-spacing: 2px; }
@@ -126,7 +125,7 @@
             <button style="background: #333; padding: 10px 40px;" class="menu-btn" onclick="backToMain()">BACK</button>
         </div>
 
-        <div class="cloud-ui">
+        <div class="cloud-ui" id="cloud-ui">
             <button id="login-btn" onclick="toggleXP()">GMAIL LOGIN</button>
             <div id="xp-overlay">
                 <div class="xp-text"><span>EXP PROGRESS</span><span id="xp-val-text">0/50</span></div>
@@ -278,6 +277,7 @@
         if (round > 1) {
             gameState = "SHOP";
             document.getElementById('shop-overlay').style.display = 'flex';
+            document.getElementById('cloud-ui').style.display = 'none';
             updateShopUI();
         } else {
             gameState = "BATTLE";
@@ -444,7 +444,9 @@
     };
 
     document.getElementById("confirm-btn").onclick = () => {
-        shopOverlay.style.display = "none"; gameState = "TRANSITION";
+        shopOverlay.style.display = "none";
+        document.getElementById('cloud-ui').style.display = 'flex';
+        gameState = "TRANSITION";
         player.shieldMax = player.shield; 
         setTimeout(() => { 
             enemies = []; bullets = []; darts = []; timeLeft = 20; refreshUsed = 0; tempBuff.active = false;
@@ -540,8 +542,11 @@
                 updateXPBar(); 
                 round++;
                 syncCloud(); 
-                gameState = "SHOP"; updateMenuUI();
-                shopOverlay.style.display = "flex"; updateShopUI();
+                gameState = "SHOP"; 
+                updateMenuUI();
+                shopOverlay.style.display = "flex";
+                document.getElementById('cloud-ui').style.display = 'none';
+                updateShopUI();
                 return;
             }
         }
