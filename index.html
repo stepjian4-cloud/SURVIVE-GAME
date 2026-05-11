@@ -7,44 +7,62 @@
         #game-container { position: relative; width: 900px; height: 650px; }
         canvas { background: #0a0a0a; border: 4px solid #444; display: block; cursor: crosshair; }
         
-        /* === 新增：主界面样式 === */
         #main-menu {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 500; display: flex; flex-direction: column;
             align-items: center; justify-content: center;
         }
         #main-menu h1 {
-            font-size: 110px; color: #ff0000; margin: 0 0 30px 0;
+            font-size: 110px; color: #ff0000; margin: 0;
             letter-spacing: 20px; text-shadow: 0 0 30px rgba(255,0,0,0.6);
             font-weight: 900;
         }
+        /* 新增：开始按钮下的关卡显示 */
+        #menu-round-info { color: #888; font-size: 24px; margin-top: 10px; margin-bottom: 30px; letter-spacing: 2px; }
+        
         .armory-box {
-            width: 500px; height: 150px; border: 2px solid #333;
-            background: rgba(30, 30, 30, 0.5); border-radius: 15px;
+            width: 250px; height: 75px; border: 2px solid #333;
+            background: rgba(30, 30, 30, 0.5); border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
-            color: #555; font-size: 18px; margin-bottom: 60px;
-            letter-spacing: 2px;
+            color: #555; font-size: 12px; margin-bottom: 20px;
+            letter-spacing: 1px; text-align: center;
         }
         .start-btn {
-            padding: 22px 100px; font-size: 36px; background: #27ae60;
+            padding: 15px 65px; font-size: 24px; background: #27ae60;
             color: white; border: none; border-radius: 50px; cursor: pointer;
             font-weight: bold; text-transform: uppercase; transition: 0.3s;
             box-shadow: 0 0 25px rgba(39, 174, 96, 0.4);
         }
         .start-btn:hover { background: #2ecc71; transform: scale(1.08); box-shadow: 0 0 40px rgba(39, 174, 96, 0.6); }
 
-        /* === 以下保留你所有的原始 UI 样式 === */
         .cloud-ui { position: absolute; top: 10px; right: 10px; z-index: 300; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-        #login-btn { background: #4285F4; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 120px; transition: 0.2s; }
+        #login-btn { background: #4285F4; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 150px; transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .leaderboard-container { background: rgba(0,0,0,0.85); border: 1px solid #444; border-radius: 8px; width: 180px; overflow: hidden; transition: 0.3s; }
+        /* 排行榜样式：增加悬浮等级显示 */
+        .leaderboard-container { background: rgba(0,0,0,0.85); border: 1px solid #444; border-radius: 8px; width: 200px; overflow: hidden; transition: 0.3s; }
         .leaderboard-header { background: #222; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; border-bottom: 1px solid #444; }
         .leaderboard-header h4 { margin: 0; color: #f1c40f; font-size: 13px; letter-spacing: 1px; }
         .toggle-icon { color: #f1c40f; font-weight: bold; font-size: 12px; }
         .leaderboard-content { padding: 10px; color: #aaa; font-size: 12px; max-height: 200px; transition: 0.3s; }
         .leaderboard-container.collapsed .leaderboard-content { max-height: 0; padding-top: 0; padding-bottom: 0; opacity: 0; }
-        .rank-item { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+        .rank-item { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #333; padding-bottom: 2px; position: relative; }
         .rank-item b { color: #fff; }
+        /* 鼠标悬浮在排行榜名字上显示等级 */
+        .rank-item:hover::after {
+            content: attr(data-lvl); position: absolute; left: -80px; top: 0;
+            background: #f1c40f; color: #000; padding: 2px 8px; border-radius: 4px;
+            font-weight: bold; font-size: 10px; z-index: 1000;
+        }
+
+        /* 经验进度条样式：黑白风格 */
+        #xp-overlay {
+            display: none; position: absolute; top: 40px; right: 0; width: 200px;
+            background: #000; border: 1px solid #fff; padding: 10px; z-index: 400;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        .xp-bar-bg { width: 100%; height: 12px; background: #333; border: 1px solid #fff; position: relative; }
+        .xp-bar-fill { height: 100%; background: #fff; width: 0%; transition: 0.3s; }
+        .xp-text { color: #fff; font-size: 10px; margin-bottom: 5px; font-family: monospace; display: flex; justify-content: space-between; }
 
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; flex-direction: column; align-items: center; color: white; z-index: 100; padding: 30px; box-sizing: border-box; }
         #shop-overlay { background: rgba(0,0,0,0.98); }
@@ -53,7 +71,7 @@
         .points-info { font-size: 36px; color: #2ecc71; font-weight: bold; background: #222; padding: 5px 25px; border-radius: 10px; border: 1px solid #555; }
         #pause-overlay { background: rgba(0,0,0,0.85); justify-content: center; cursor: pointer; }
         #pause-overlay h2 { font-size: 64px; color: #f1c40f; margin-bottom: 10px; letter-spacing: 5px; }
-        #pause-overlay p { font-size: 24px; color: #aaa; }
+        
         .cards-container { display: flex; gap: 20px; justify-content: center; width: 100%; height: 440px; }
         .skill-card { width: 280px; height: 100%; background: #1a1a1a; border: 3px solid #444; border-radius: 20px; display: flex; flex-direction: column; padding: 25px; transition: 0.2s; box-sizing: border-box; cursor: pointer; }
         .skill-card:hover { transform: translateY(-10px); border-color: #fff; background: #252525; }
@@ -62,15 +80,14 @@
         .skill-name { font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #fff; border-bottom: 2px solid #333; padding-bottom: 10px; }
         .skill-desc { font-size: 17px; line-height: 1.5; color: #ccc; flex-grow: 1; }
         .skill-price { font-size: 26px; color: #f39c12; font-weight: bold; text-align: center; margin-top: 15px; padding: 12px; background: rgba(0,0,0,0.5); border-radius: 10px; }
-        .r-50 { background: #7f8c8d; color: #000; } 
-        .r-25 { background: #3498db; color: #fff; } 
-        .r-20 { background: #9b59b6; color: #fff; } 
-        .r-10 { background: #f1c40f; color: #000; } 
-        .r-5  { background: #e74c3c; color: #fff; } 
-        .r-1  { background: #00ffcc; color: #000; box-shadow: 0 0 20px #00ffcc; } 
+        
+        .r-50 { background: #7f8c8d; color: #000; } .r-25 { background: #3498db; color: #fff; } .r-20 { background: #9b59b6; color: #fff; } 
+        .r-10 { background: #f1c40f; color: #000; } .r-5 { background: #e74c3c; color: #fff; } .r-1 { background: #00ffcc; color: #000; box-shadow: 0 0 20px #00ffcc; } 
+        
         .shop-footer { width: 95%; display: flex; justify-content: space-between; align-items: center; margin-top: 35px; }
         .btn { padding: 18px 45px; font-size: 22px; font-weight: bold; border-radius: 12px; cursor: pointer; border: none; transition: 0.2s; text-transform: uppercase; }
         .refresh-btn { background: #34495e; color: white; border: 2px solid #5d6d7e; }
+        .refresh-btn:disabled { background: #222; border-color: #333; color: #555; cursor: not-allowed; }
         .confirm-btn { background: #27ae60; color: white; box-shadow: 0 5px 20px rgba(39, 174, 96, 0.4); }
         .insufficient { color: #e74c3c !important; }
     </style>
@@ -79,15 +96,22 @@
     <div id="game-container">
         <div id="main-menu">
             <h1>SURVIVE</h1>
-            <div class="armory-box">ARMORY & LOGISTICS (SYSTEM IDLE)</div>
+            <div id="menu-round-info">ROUND 1</div>
+            <div class="armory-box">ARMORY & LOGISTICS<br>(SYSTEM IDLE)</div>
             <button class="start-btn" onclick="startGame()">START MISSION</button>
         </div>
 
         <div class="cloud-ui">
-            <button id="login-btn" onclick="login()">GMAIL LOGIN</button>
+            <button id="login-btn" onclick="toggleXP()">GMAIL LOGIN</button>
+            
+            <div id="xp-overlay">
+                <div class="xp-text"><span>EXP PROGRESS</span><span id="xp-val-text">0/50</span></div>
+                <div class="xp-bar-bg"><div id="xp-fill" class="xp-bar-fill"></div></div>
+            </div>
+
             <div id="lb-container" class="leaderboard-container">
                 <div class="leaderboard-header" onclick="toggleLeaderboard()">
-                    <h4>LEADERBOARD</h4>
+                    <h4>LEADERBOARD (ROUNDS)</h4>
                     <span id="toggle-icon" class="toggle-icon">▼</span>
                 </div>
                 <div class="leaderboard-content" id="rank-list">Syncing...</div>
@@ -118,7 +142,6 @@
     </div>
 
 <script type="module">
-    // === 保留你所有的 Firebase 逻辑 ===
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
     import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
@@ -138,6 +161,15 @@
     const db = getFirestore(app);
 
     window.login = () => signInWithPopup(auth, new GoogleAuthProvider());
+    
+    // XP 进度条切换
+    window.toggleXP = () => {
+        if (!auth.currentUser) { window.login(); return; }
+        const overlay = document.getElementById('xp-overlay');
+        overlay.style.display = overlay.style.display === 'block' ? 'none' : 'block';
+        updateXPBar();
+    };
+
     window.toggleLeaderboard = () => {
         const container = document.getElementById('lb-container');
         const icon = document.getElementById('toggle-icon');
@@ -145,40 +177,85 @@
         icon.innerText = container.classList.contains('collapsed') ? '▲' : '▼';
     };
 
-    // === 新增：开始游戏逻辑 ===
     window.startGame = () => {
         document.getElementById('main-menu').style.display = 'none';
         gameState = "BATTLE";
-        lastTick = Date.now(); // 开始计时
+        lastTick = Date.now();
     };
 
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            document.getElementById('login-btn').innerText = user.displayName.split(' ')[0].toUpperCase();
             const snap = await getDoc(doc(db, "pixel_stats", user.uid));
-            if(snap.exists()) { player.highScore = snap.data().highScore || 0; }
+            if(snap.exists()) { 
+                const d = snap.data();
+                player.highRound = d.highRound || 1;
+                player.level = d.level || 1;
+                player.xp = d.xp || 0;
+                round = d.lastRound || 1;
+                player.score = d.points || 0; // 恢复积分
+            }
+            updateNameUI();
+            updateMenuUI();
         }
     });
 
-    onSnapshot(query(collection(db, "pixel_stats"), orderBy("highScore", "desc"), limit(5)), (s) => {
+    // 排行榜改为按最高关卡排序
+    onSnapshot(query(collection(db, "pixel_stats"), orderBy("highRound", "desc"), limit(5)), (s) => {
         const list = document.getElementById('rank-list');
         list.innerHTML = '';
-        s.forEach(d => { list.innerHTML += `<div class="rank-item"><span>${d.data().name}</span><b>${d.data().highScore}</b></div>`; });
+        s.forEach(d => { 
+            const data = d.data();
+            list.innerHTML += `<div class="rank-item" data-lvl="LEVEL: ${data.level || 1}"><span>${data.name}</span><b>R${data.highRound || 1}</b></div>`; 
+        });
     });
 
     async function syncCloud() {
         if (auth.currentUser) {
-            const currentBest = Math.max(player.score, player.highScore || 0);
+            const currentBestRound = Math.max(round, player.highRound || 1);
             await setDoc(doc(db, "pixel_stats", auth.currentUser.uid), {
                 name: auth.currentUser.displayName.split(' ')[0],
-                highScore: currentBest,
-                lastRound: round
+                highRound: currentBestRound,
+                level: player.level,
+                xp: Math.floor(player.xp),
+                lastRound: round,
+                points: player.score
             }, { merge: true });
-            player.highScore = currentBest;
+            player.highRound = currentBestRound;
+            updateNameUI();
         }
     }
 
-    // === 游戏原始逻辑完全保留 ===
+    function updateNameUI() {
+        if (auth.currentUser) {
+            const name = auth.currentUser.displayName.split(' ')[0].toUpperCase();
+            document.getElementById('login-btn').innerText = `${name}: LVL ${player.level}`;
+        }
+    }
+
+    function updateMenuUI() {
+        document.getElementById('menu-round-info').innerText = `ROUND ${round}`;
+    }
+
+    function updateXPBar() {
+        const nextXp = getNextLevelXp(player.level);
+        const perc = (player.xp / nextXp) * 100;
+        document.getElementById('xp-fill').style.width = perc + "%";
+        document.getElementById('xp-val-text').innerText = `${Math.floor(player.xp)} / ${Math.floor(nextXp)}`;
+    }
+
+    // 升级经验公式：1.25倍
+    function getNextLevelXp(lvl) {
+        return 50 * Math.pow(1.25, lvl - 1);
+    }
+
+    // 经验收益序列：10, 12, 14, 16, 20, 24, 26, 30, 34, 40...
+    function getRoundXP(r) {
+        const seq = [0, 10, 12, 14, 16, 20, 24, 26, 30, 34, 40];
+        if (r <= 10) return seq[r];
+        // 10关以后的规律：每关基础增加，且逢5逢10额外加
+        return 40 + (r - 10) * 4; 
+    }
+
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const shopOverlay = document.getElementById("shop-overlay");
@@ -189,34 +266,34 @@
     const refreshCountText = document.getElementById("refresh-count");
     const confirmBtn = document.getElementById("confirm-btn");
 
-    let gameState = "MENU"; // 初始化为菜单状态
+    let gameState = "MENU";
     let player = { 
         x: 450, y: 325, score: 0, hp: 100, maxHp: 100, shield: 0,
         baseDamage: 0.6, critRate: 0.05, dodgeRate: 0.01,
         fireRate: 200, pierce: 1, range: 750, regen: 0, dartLevel: 0,
-        highScore: 0
+        highRound: 1, level: 1, xp: 0
     };
 
     let enemies = [], bullets = [], darts = [], keys = {};
-    let round = 1, timeLeft = 20, lastTick = Date.now(), refreshUsed = 0;
+    let round = 1, timeLeft = 20, lastTick = Date.now(), refreshUsed = 0, lastDartTime = 0;
     const refreshCosts = [1, 2, 5, 10, 20];
     let tempBuff = { active: false, fr: 1, reg: 0 };
 
     const allSkills = [
-        { n: "Tactical Repair", d: "Instantly restore 20 HP. Under massive damage pressure, survival is the only objective.", v: () => player.hp = Math.min(player.maxHp, player.hp + 20), r: 50, p: 10 },
-        { n: "Energy Shield", d: "Gain 20 Shield capacity. Shields absorb huge impacts, acting as a vital safety buffer.", v: () => player.shield += 20, r: 50, p: 10 },
-        { n: "Cellular Regen", d: "Recover 1 HP every second. Provides essential sustainability during long skirmishes.", v: () => player.regen += 1, r: 25, p: 20 },
-        { n: "Critical Analysis", d: "Crit Rate +8%. Target structural weaknesses to deal 200% lethal damage.", v: () => player.critRate += 0.08, r: 25, p: 20 },
-        { n: "Overclock Mod", d: "Fire Rate +15%. High volume of fire is the ultimate solution to any enemy swarm.", v: () => player.fireRate *= 0.85, r: 20, p: 25 },
-        { n: "Railgun Ammo", d: "Pierce +1. Bullets will now travel through multiple enemies with devastating effect.", v: () => player.pierce += 1, r: 20, p: 25 },
-        { n: "Predator Darts", d: "Activate auto-tracking darts. Targets the toughest enemies every 10 seconds.", v: () => player.dartLevel += 1, r: 10, p: 30 },
-        { n: "Titan Core", d: "Max HP +30 and full heal. Upgrades your chassis to endure the most hostile environments.", v: () => { player.maxHp += 30; player.hp = player.maxHp; }, r: 10, p: 30 },
-        { n: "Berserker Drive", d: "[ROUND ONLY] Fire Rate x5 & massive regen. Unleash absolute carnage.", v: () => { tempBuff.fr = 5; tempBuff.reg = 3; tempBuff.active = true; }, r: 5, p: 35 },
-        { n: "God Protocol", d: "Ultimate augmentation. Drastically improves Range, Pierce, and Base Damage.", v: () => { player.range *= 1.5; player.pierce += 2; player.baseDamage += 0.4; }, r: 1, p: 40 }
+        { n: "Tactical Repair", d: "Instantly restore 20 HP.", v: () => player.hp = Math.min(player.maxHp, player.hp + 20), r: 50, p: 10 },
+        { n: "Energy Shield", d: "Gain 20 Shield capacity.", v: () => player.shield += 20, r: 50, p: 10 },
+        { n: "Cellular Regen", d: "Recover 1 HP every second.", v: () => player.regen += 1, r: 25, p: 20 },
+        { n: "Critical Analysis", d: "Crit Rate +8%.", v: () => player.critRate += 0.08, r: 25, p: 20 },
+        { n: "Overclock Mod", d: "Fire Rate +15%.", v: () => player.fireRate *= 0.85, r: 20, p: 25 },
+        { n: "Railgun Ammo", d: "Pierce +1.", v: () => player.pierce += 1, r: 20, p: 25 },
+        { n: "Predator Darts", d: "Activate physics-based grey darts. Lock strongest & nearest every 10s.", v: () => player.dartLevel += 1, r: 10, p: 30 },
+        { n: "Titan Core", d: "Max HP +30 and full heal.", v: () => { player.maxHp += 30; player.hp = player.maxHp; }, r: 10, p: 30 },
+        { n: "Berserker Drive", d: "[ROUND ONLY] Fire Rate x5 & massive regen.", v: () => { tempBuff.fr = 5; tempBuff.reg = 3; tempBuff.active = true; }, r: 5, p: 35 },
+        { n: "God Protocol", d: "Ultimate augmentation.", v: () => { player.range *= 1.5; player.pierce += 2; player.baseDamage += 0.5; }, r: 1, p: 40 }
     ];
 
     function togglePause() {
-        if (gameState === "SHOP" || gameState === "TRANSITION" || gameState === "MENU") return;
+        if (["SHOP", "TRANSITION", "MENU"].includes(gameState)) return;
         if (gameState === "BATTLE") { gameState = "PAUSED"; pauseOverlay.style.display = "flex"; }
         else if (gameState === "PAUSED") { gameState = "BATTLE"; pauseOverlay.style.display = "none"; lastTick = Date.now(); }
     }
@@ -243,28 +320,43 @@
             card.className = "skill-card";
             const canAfford = player.score >= skill.p;
             card.innerHTML = `<div class="rarity-tag r-${skill.r}">${skill.r === 1 ? 'ULTIMATE' : skill.r <= 10 ? 'LEGEND' : 'STANDARD'}</div><div class="skill-name">${skill.n}</div><div class="skill-desc">${skill.d}</div><div class="skill-price ${!canAfford ? 'insufficient' : ''}">COST: ${skill.p} PT</div>`;
-            if (canAfford) {
-                card.onclick = (e) => {
-                    e.stopPropagation(); player.score -= skill.p; skill.v();
-                    card.classList.add("sold-out"); card.onclick = null;
-                    pointsDisplay.innerText = player.score; updateShopButtons();
-                };
-            }
+            
+            card.onclick = (e) => {
+                e.stopPropagation();
+                if (player.score >= skill.p) {
+                    player.score -= skill.p; 
+                    skill.v();
+                    card.classList.add("sold-out"); 
+                    card.onclick = null;
+                    pointsDisplay.innerText = player.score;
+                    updateShopButtons();
+                }
+            };
             cardsContainer.appendChild(card);
         }
         updateShopButtons();
     }
 
     function updateShopButtons() {
-        const cost = refreshCosts[refreshUsed] || 999;
-        refreshBtn.innerText = `REROLL (${cost}PT)`;
-        refreshBtn.disabled = refreshUsed >= 5 || player.score < cost;
-        refreshCountText.innerText = `REROLLS LEFT: ${5 - refreshUsed}/5`;
+        if (refreshUsed >= 5) {
+            refreshBtn.innerText = `MAX REACHED`;
+            refreshBtn.disabled = true;
+            refreshCountText.innerText = `REROLLS LEFT: 0/5`;
+        } else {
+            const cost = refreshCosts[refreshUsed];
+            refreshBtn.innerText = `REROLL (${cost}PT)`;
+            refreshBtn.disabled = player.score < cost;
+            refreshCountText.innerText = `REROLLS LEFT: ${5 - refreshUsed}/5`;
+        }
     }
 
     refreshBtn.onclick = () => {
         const cost = refreshCosts[refreshUsed];
-        if (player.score >= cost) { player.score -= cost; refreshUsed++; updateShopUI(); }
+        if (player.score >= cost && refreshUsed < 5) { 
+            player.score -= cost; 
+            refreshUsed++; 
+            updateShopUI(); 
+        }
     };
 
     confirmBtn.onclick = () => {
@@ -275,13 +367,24 @@
         }, 800);
     };
 
+    function getEliteTarget() {
+        if (enemies.length === 0) return null;
+        let target = null, maxHP = -1, minDist = Infinity;
+        enemies.forEach(e => {
+            let d = Math.hypot(e.x - player.x, e.y - player.y);
+            if (e.hp > maxHP) { maxHP = e.hp; minDist = d; target = e; }
+            else if (e.hp === maxHP && d < minDist) { minDist = d; target = e; }
+        });
+        return target;
+    }
+
     function spawnEnemy() {
         if (gameState !== "BATTLE" || Math.random() > 0.75) return;
         let x, y, side = Math.floor(Math.random()*4);
         if(side==0){x=-30; y=Math.random()*650;} else if(side==1){x=930; y=Math.random()*650;}
         else if(side==2){x=Math.random()*900; y=-30;} else {x=Math.random()*900; y=680;}
         let hp = (round >= 5 && Math.random() < 0.3) ? 2 : 1;
-        enemies.push({ id: Math.random(), x, y, hp, maxHp: hp, speed: 0.8 + (round*0.06), atkTimer: 0 });
+        enemies.push({ id: Math.random(), x, y, hp, maxHp: hp, speed: 1.0 + (round*0.06), atkTimer: 0 });
     }
 
     let isMouseDown = false, mousePos = {x:0, y:0}, lastShot = 0;
@@ -292,12 +395,32 @@
     function update() {
         if (gameState !== "BATTLE") return;
         let now = Date.now();
+
+        if (player.dartLevel > 0 && now - lastDartTime > 10000) {
+            let target = getEliteTarget();
+            if (target) {
+                for (let i = 0; i < player.dartLevel; i++) {
+                    darts.push({ startX: player.x, startY: player.y, x: player.x, y: player.y, target: target, life: 0, maxLife: 70, curveDir: (Math.random() - 0.5) * 120 });
+                }
+            }
+            lastDartTime = now;
+        }
+
         if (now - lastTick >= 1000) {
             timeLeft--; lastTick = now;
             player.hp = Math.min(player.maxHp, player.hp + player.regen + (tempBuff.active ? tempBuff.reg : 0));
             if (timeLeft <= 0) {
+                // 回合结束：加经验，判升级
+                const earnedXP = getRoundXP(round);
+                player.xp += earnedXP;
+                while (player.xp >= getNextLevelXp(player.level)) {
+                    player.xp -= getNextLevelXp(player.level);
+                    player.level++;
+                }
+                updateXPBar();
                 syncCloud(); 
-                gameState = "SHOP"; round++; shopOverlay.style.display = "flex"; updateShopUI();
+                gameState = "SHOP"; round++; updateMenuUI();
+                shopOverlay.style.display = "flex"; updateShopUI();
                 return;
             }
         }
@@ -309,8 +432,20 @@
             lastShot = now;
         }
 
-        if(keys["KeyW"]) player.y -= 4.5; if(keys["KeyS"]) player.y += 4.5;
-        if(keys["KeyA"]) player.x -= 4.5; if(keys["KeyD"]) player.x += 4.5;
+        const moveSpeed = 3.6;
+        if(keys["KeyW"]) player.y -= moveSpeed; if(keys["KeyS"]) player.y += moveSpeed;
+        if(keys["KeyA"]) player.x -= moveSpeed; if(keys["KeyD"]) player.x += moveSpeed;
+
+        for(let i=darts.length-1; i>=0; i--) {
+            let d = darts[i]; d.life++; let t = d.life / d.maxLife;
+            if (t >= 1) { d.target.hp -= 8; darts.splice(i, 1); continue; }
+            let baseLineX = d.startX + (d.target.x - d.startX) * t;
+            let baseLineY = d.startY + (d.target.y - d.startY) * t;
+            let angle = Math.atan2(d.target.y - d.startY, d.target.x - d.startX);
+            let offset = Math.sin(Math.PI * t) * d.curveDir;
+            d.x = baseLineX + Math.cos(angle + Math.PI/2) * offset;
+            d.y = baseLineY + Math.sin(angle + Math.PI/2) * offset;
+        }
 
         for(let i=bullets.length-1; i>=0; i--) {
             let b = bullets[i]; b.x += b.sx; b.y += b.sy; b.d += 18;
@@ -330,15 +465,16 @@
             if (dist < 22 && now - e.atkTimer > 500) {
                 if (Math.random() > player.dodgeRate) {
                     if (player.shield > 0) player.shield = Math.max(0, player.shield - 20);
-                    else player.hp -= 4.0 * e.maxHp;
+                    else player.hp -= 5.0 * e.maxHp;
                 }
                 e.atkTimer = now;
             }
             if (e.hp <= 0) { player.score += e.maxHp; enemies.splice(i, 1); }
         });
+
         if (player.hp <= 0) { 
             syncCloud().then(() => {
-                alert("MISSION FAILED! Final Score: " + player.score); 
+                alert("MISSION FAILED! Survived Rounds: " + round); 
                 location.reload(); 
             });
         }
@@ -347,17 +483,22 @@
     function draw() {
         ctx.clearRect(0,0,900,650);
         if (gameState === "SHOP" || gameState === "MENU") return;
+        
+        ctx.fillStyle="#888"; 
+        darts.forEach(d => {
+            ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.life * 0.3); ctx.fillRect(-5, -5, 10, 10); ctx.restore();
+        });
+
         bullets.forEach(b => { ctx.fillStyle="#f1c40f"; ctx.fillRect(b.x, b.y, 6, 6); });
         enemies.forEach(e => {
             ctx.fillStyle = e.maxHp > 1 ? "#9b59b6" : "#2ecc71";
             ctx.fillRect(e.x, e.y, 20, 20);
             ctx.fillStyle="#333"; ctx.fillRect(e.x, e.y-12, 20, 5);
             ctx.fillStyle="#f00"; ctx.fillRect(e.x, e.y-12, 20*(e.hp/e.maxHp), 5);
-            ctx.fillStyle="#fff"; ctx.font="bold 12px Arial"; ctx.fillText(Math.ceil(e.hp), e.x, e.y-18);
         });
         ctx.fillStyle="#3498db"; ctx.fillRect(player.x, player.y, 20, 20);
         ctx.fillStyle="#fff"; ctx.font="bold 20px monospace";
-        ctx.fillText(`WAVE: ${round} | PT: ${player.score} | BEST: ${player.highScore}`, 20, 35);
+        ctx.fillText(`WAVE: ${round} | PT: ${player.score} | BEST: R${player.highRound}`, 20, 35);
         ctx.fillStyle="#333"; ctx.fillRect(20, 55, 250, 18);
         ctx.fillStyle="#f44"; ctx.fillRect(20, 55, 250*(player.hp/player.maxHp), 18);
         ctx.fillStyle="#fff"; ctx.font="bold 14px Arial"; ctx.fillText(`HP: ${Math.ceil(player.hp)} / ${player.maxHp}`, 280, 70);
