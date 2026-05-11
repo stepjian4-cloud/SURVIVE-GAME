@@ -65,11 +65,12 @@
         }
         #login-btn { background: #4285F4; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 150px; transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
+        /* ★ 聊天框：平时半隐藏在右侧，hover/focus 滑出 */
         #chat-container {
             position: absolute; right: -180px; top: 50%; transform: translateY(-50%);
             width: 220px; height: 300px; background: rgba(0,0,0,0.7);
             border: 1px solid #444; border-right: none; border-radius: 10px 0 0 10px;
-            display: none; flex-direction: column; transition: 0.3s ease; z-index: 450;
+            display: none; flex-direction: column; transition: right 0.3s ease, opacity 0.3s ease; z-index: 450;
             overflow: hidden; opacity: 0.5;
         }
         #chat-container:hover, #chat-container:focus-within { right: 0; opacity: 1; background: rgba(0,0,0,0.9); }
@@ -208,6 +209,7 @@
             </div>
         </div>
 
+        <!-- 聊天框：右侧半隐藏，hover/Enter 展开 -->
         <div id="chat-container">
             <div id="chat-messages"></div>
             <div id="chat-input-box">
@@ -282,19 +284,26 @@
     const refreshCosts = [1, 2, 5, 10, 20];
     let tempBuff = { active: false, fr: 1, reg: 0 };
 
+    // ★ 飞镖多发平均分配：记录上一发的发射时间偏移，每发之间均匀间隔
+    let dartSubIndex = 0;
+    let dartSubTimer = 0;
+    let dartSubQueue = []; // 待发射的飞镖队列 [{target}]
+
     const chatContainer = document.getElementById('chat-container');
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
 
-    chatInput.onfocus = () => { isMouseDown = false; keys = {}; }; 
+    chatInput.onfocus = () => { isMouseDown = false; keys = {}; };
 
+    // ★ 全局聊天：实时监听 Firebase global_chat
     const chatQuery = query(collection(db, "global_chat"), orderBy("timestamp", "desc"), limit(30));
     onSnapshot(chatQuery, (snapshot) => {
         chatMessages.innerHTML = "";
-        snapshot.docs.reverse().forEach(doc => {
-            const data = doc.data();
+        snapshot.docs.reverse().forEach(d => {
+            const data = d.data();
             const div = document.createElement('div');
             div.className = 'chat-msg';
+            // 直接显示原文，支持任意语言/emoji
             div.innerHTML = `<b>${data.user}:</b> ${data.text}`;
             chatMessages.appendChild(div);
         });
@@ -305,7 +314,6 @@
         const text = chatInput.value.trim();
         if (!text) return;
         const userName = auth.currentUser ? auth.currentUser.displayName.split(' ')[0] : "Guest";
-        
         try {
             await addDoc(collection(db, "global_chat"), {
                 user: userName,
@@ -313,7 +321,7 @@
                 timestamp: serverTimestamp()
             });
             chatInput.value = "";
-        } catch (e) { console.error("Error sending message: ", e); }
+        } catch (e) { console.error("Chat send error:", e); }
     }
 
     const gunScroll = document.getElementById('gun-scroll');
@@ -540,7 +548,7 @@
             card.className = "skill-card";
             const canAfford = player.score >= skill.p;
             card.innerHTML = `<div class="rarity-tag r-${skill.r}">${skill.r === 1 ? 'ULTIMATE' : skill.r <= 10 ? 'LEGEND' : 'STANDARD'}</div><div class="skill-name">${skill.n}</div><div class="skill-desc">${skill.d}</div><div class="skill-price ${!canAfford ? 'insufficient' : ''}">COST: ${skill.p} PT</div>`;
-            card.onclick = (e) => {
+            card.onclick = () => {
                 if (player.score >= skill.p) {
                     player.score -= skill.p;
                     skill.v();
@@ -554,7 +562,7 @@
             cardsContainer.appendChild(card);
         }
         updateShopButtons();
-    }
+    };
 
     function updateShopButtons() {
         if (refreshUsed >= 5) {
@@ -581,7 +589,7 @@
         gameState = "TRANSITION";
         player.shieldMax = player.shield; 
         setTimeout(() => { 
-            enemies = []; bullets = []; darts = []; timeLeft = 20; refreshUsed = 0; tempBuff.active = false;
+            enemies = []; bullets = []; darts = []; dartSubQueue = []; timeLeft = 20; refreshUsed = 0; tempBuff.active = false;
             gameState = "BATTLE"; lastTick = Date.now();
         }, 800);
     };
@@ -654,6 +662,7 @@
         let fr = player.fireRate / (tempBuff.active ? tempBuff.fr : 1);
         if (now - lastShot > fr) {
             let dx = mousePos.x - player.x, dy = mousePos.y - player.y, dist = Math.hypot(dx,dy);
+            if (dist === 0) return;
             bullets.push({ 
                 x: player.x, y: player.y, 
                 sx: (dx/dist)*player.bulletSpeed, sy: (dy/dist)*player.bulletSpeed, 
@@ -669,23 +678,22 @@
         if(side==0){x=-30; y=Math.random()*650;} else if(side==1){x=930; y=Math.random()*650;}
         else if(side==2){x=Math.random()*900; y=-30;} else {x=Math.random()*900; y=680;}
         
-        // Base Enemy Values
         let hp = 1;
         let speed = 1.0 + (round * 0.06);
         let color = "#2ecc71";
         
-        // Elite Check (Random chance based on round)
+        // Elite Check
         if (round >= 5 && Math.random() < 0.3) {
             hp = 2;
             color = "#9b59b6";
         }
 
-        // EVERY 5 ROUNDS MECHANIC: 50% lowest tier enemies gain 2x HP and 2x SPEED
+        // ★ 每5回合：50%最低级怪 HP*2 速度*2，橙色
         if (round > 0 && round % 5 === 0 && hp === 1) {
             if (Math.random() < 0.5) {
                 hp *= 2;
                 speed *= 2;
-                color = "#e67e22"; // Distinct orange color for boosted enemies
+                color = "#e67e22";
             }
         }
 
@@ -700,18 +708,52 @@
         });
     }
 
+    // ★ 飞镖目标选择：优先离玩家最近的高生命值目标，dart级别>=2时分散锁定不同目标
+    function pickDartTargets(count) {
+        if (enemies.length === 0) return [];
+        // 按"距离权重 + HP权重"排序：距离越近、HP越高越优先
+        let scored = enemies.map(e => {
+            let dist = Math.hypot(e.x - player.x, e.y - player.y);
+            let score = e.hp * 10 - dist * 0.05; // HP权重高，距离权重辅助
+            return { e, score };
+        }).sort((a, b) => b.score - a.score);
+
+        let targets = [];
+        for (let i = 0; i < count; i++) {
+            // 轮流从排序列表中取，避免全锁同一个
+            targets.push(scored[i % scored.length].e);
+        }
+        return targets;
+    }
+
     function update() {
         if (gameState !== "BATTLE") return;
         let now = Date.now();
-        if (player.dartLevel > 0 && now - lastDartTime > player.dartCooldown) {
-            let target = enemies.sort((a,b) => b.hp - a.hp)[0];
-            if (target) {
-                for (let i = 0; i < player.dartLevel; i++) {
-                    darts.push({ startX: player.x, startY: player.y, x: player.x, y: player.y, target: target, life: 0, maxLife: 35, curveDir: (Math.random() - 0.5) * 120 });
+
+        // ★ 飞镖系统：>=2级时平均分散发射，每发间隔 = CD / dartLevel
+        if (player.dartLevel > 0) {
+            const intervalPerDart = player.dartCooldown / player.dartLevel;
+            if (now - dartSubTimer > intervalPerDart) {
+                dartSubTimer = now;
+                if (enemies.length > 0) {
+                    // 选目标：每次发1枚，分别选不同目标
+                    let targets = pickDartTargets(player.dartLevel);
+                    let targetForThis = targets[dartSubIndex % player.dartLevel];
+                    darts.push({ 
+                        startX: player.x, startY: player.y, 
+                        x: player.x, y: player.y, 
+                        vx: 0, vy: 0,           // ★ 飞出地图后用速度延伸
+                        target: targetForThis, 
+                        life: 0, maxLife: 35,    // 速度*2（原70/2）
+                        curveDir: (Math.random() - 0.5) * 120,
+                        hitEnemies: [],
+                        escaped: false           // ★ 是否已飞离目标进入自由飞行
+                    });
+                    dartSubIndex++;
                 }
             }
-            lastDartTime = now;
         }
+
         if (now - lastTick >= 1000) {
             timeLeft--; lastTick = now;
             player.hp = Math.min(player.maxHp, player.hp + player.regen + (tempBuff.active ? tempBuff.reg : 0));
@@ -724,7 +766,9 @@
                 updateShopUI(); return;
             }
         }
+
         if (isMouseDown && player.isAuto && document.activeElement !== chatInput) tryShoot();
+
         const ms = 3.6;
         if (document.activeElement !== chatInput) {
             if(keys["KeyW"]) player.y -= ms; if(keys["KeyS"]) player.y += ms;
@@ -732,35 +776,99 @@
         }
         player.x = Math.max(20, Math.min(880, player.x));
         player.y = Math.max(20, Math.min(630, player.y));
-        for(let i=darts.length-1; i>=0; i--) {
-            let d = darts[i]; d.life++; let t = d.life / d.maxLife;
-            if (t >= 1) { d.target.hp -= player.dartDamage; darts.splice(i, 1); continue; }
-            let bx = d.startX + (d.target.x - d.startX) * t, by = d.startY + (d.target.y - d.startY) * t;
+
+        // ★ 飞镖更新：到达目标后不消失，继续沿原方向飞行直到出地图
+        for(let i = darts.length - 1; i >= 0; i--) {
+            let d = darts[i];
+
+            if (d.escaped) {
+                // 自由飞行阶段：按记录的速度向量继续移动
+                d.x += d.vx;
+                d.y += d.vy;
+                // 路径伤害
+                enemies.forEach(e => {
+                    if (!d.hitEnemies.includes(e.id) && Math.hypot(d.x - e.x, d.y - e.y) < 25) {
+                        e.hp -= player.dartDamage * 0.2;
+                        d.hitEnemies.push(e.id);
+                    }
+                });
+                // 飞出地图才销毁
+                if (d.x < -50 || d.x > 950 || d.y < -50 || d.y > 700) {
+                    darts.splice(i, 1);
+                }
+                continue;
+            }
+
+            // 追踪阶段
+            d.life++;
+            let t = d.life / d.maxLife;
+
+            // 路径伤害（追踪途中）
+            enemies.forEach(e => {
+                if (!d.hitEnemies.includes(e.id) && Math.hypot(d.x - e.x, d.y - e.y) < 25) {
+                    e.hp -= player.dartDamage * 0.2;
+                    d.hitEnemies.push(e.id);
+                }
+            });
+
+            if (t >= 1) {
+                // 到达目标，对目标造成完整伤害
+                if (!d.hitEnemies.includes(d.target.id)) {
+                    d.target.hp -= player.dartDamage;
+                    d.hitEnemies.push(d.target.id);
+                }
+                // ★ 计算当前飞行方向，转入自由飞行而不是销毁
+                let prevT = (d.life - 1) / d.maxLife;
+                let prevBx = d.startX + (d.target.x - d.startX) * prevT;
+                let prevBy = d.startY + (d.target.y - d.startY) * prevT;
+                let prevAngle = Math.atan2(d.target.y - d.startY, d.target.x - d.startX);
+                let prevOffset = Math.sin(Math.PI * prevT) * d.curveDir;
+                let prevX = prevBx + Math.cos(prevAngle + Math.PI/2) * prevOffset;
+                let prevY = prevBy + Math.sin(prevAngle + Math.PI/2) * prevOffset;
+
+                let dirX = d.x - prevX;
+                let dirY = d.y - prevY;
+                let mag = Math.hypot(dirX, dirY) || 1;
+                let spd = 8; // 自由飞行速度
+                d.vx = (dirX / mag) * spd;
+                d.vy = (dirY / mag) * spd;
+                d.escaped = true;
+                continue;
+            }
+
+            // 贝塞尔曲线追踪
+            let bx = d.startX + (d.target.x - d.startX) * t;
+            let by = d.startY + (d.target.y - d.startY) * t;
             let angle = Math.atan2(d.target.y - d.startY, d.target.x - d.startX);
             let offset = Math.sin(Math.PI * t) * d.curveDir;
-            d.x = bx + Math.cos(angle + Math.PI/2) * offset; d.y = by + Math.sin(angle + Math.PI/2) * offset;
-            enemies.forEach(e => { if(Math.hypot(d.x - e.x, d.y - e.y) < 25) e.hp -= (player.dartDamage * 0.2); });
+            d.x = bx + Math.cos(angle + Math.PI/2) * offset;
+            d.y = by + Math.sin(angle + Math.PI/2) * offset;
         }
-        for(let i=bullets.length-1; i>=0; i--) {
+
+        // ★ AWM子弹：高速子弹用多步插值防止穿模
+        for(let i = bullets.length - 1; i >= 0; i--) {
             let b = bullets[i];
             let oldX = b.x, oldY = b.y;
             b.x += b.sx; b.y += b.sy; b.d += player.bulletSpeed;
             if(b.d > player.range) { bullets.splice(i,1); continue; }
-            let steps = player.bulletSpeed > 25 ? 4 : 1;
-            for(let s=1; s<=steps; s++) {
+
+            // AWM用更密集的插值步数（速度54 → 步数12）
+            let steps = Math.ceil(player.bulletSpeed / 4);
+            for(let s = 1; s <= steps; s++) {
                 let checkX = oldX + (b.sx * (s/steps));
                 let checkY = oldY + (b.sy * (s/steps));
                 enemies.forEach(e => {
-                    if(Math.hypot(checkX-e.x, checkY-e.y)<22 && !b.hit.includes(e.id)) {
-                        e.hp -= player.baseDamage * (Math.random()<player.critRate?2:1);
+                    if(Math.hypot(checkX - e.x, checkY - e.y) < 22 && !b.hit.includes(e.id)) {
+                        e.hp -= player.baseDamage * (Math.random() < player.critRate ? 2 : 1);
                         b.hit.push(e.id);
                         if(b.p > 0 && b.p < 900) b.p--;
                         else if (b.p === 0) b.p = -1;
                     }
                 });
             }
-            if(b.p < 0) bullets.splice(i,1);
+            if(b.p < 0) bullets.splice(i, 1);
         }
+
         enemies.forEach((e, i) => {
             let dx = player.x-e.x, dy = player.y-e.y, dist = Math.hypot(dx,dy);
             e.x += (dx/dist)*e.speed; e.y += (dy/dist)*e.speed;
@@ -773,15 +881,18 @@
             }
             if (e.hp <= 0) { player.score += e.maxHp; enemies.splice(i, 1); }
         });
+
         if (player.hp <= 0) { syncCloud().then(() => { alert("MISSION FAILED!"); location.reload(); }); }
     }
 
     function draw() {
         ctx.clearRect(0,0,900,650);
         if (gameState === "SHOP" || gameState === "MENU" || gameState === "GUN") return;
+
         darts.forEach(d => {
             ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.life * 0.6); 
-            ctx.fillStyle="#00ffcc"; ctx.fillRect(-8, -8, 16, 16); ctx.strokeStyle="#fff"; ctx.strokeRect(-8, -8, 16, 16);
+            ctx.fillStyle="#00ffcc"; ctx.fillRect(-8, -8, 16, 16); 
+            ctx.strokeStyle="#fff"; ctx.strokeRect(-8, -8, 16, 16);
             ctx.restore();
         });
         bullets.forEach(b => { 
@@ -793,6 +904,7 @@
             ctx.fillStyle="#333"; ctx.fillRect(e.x, e.y-12, 20, 5);
             ctx.fillStyle="#f00"; ctx.fillRect(e.x, e.y-12, 20*(e.hp/e.maxHp), 5);
         });
+
         ctx.fillStyle="#3498db"; ctx.fillRect(player.x, player.y, 20, 20);
         ctx.fillStyle="#fff"; ctx.font="bold 20px monospace";
         ctx.fillText(`WAVE: ${round} | PT: ${player.score} | TIME: ${timeLeft}s`, 20, 35);
