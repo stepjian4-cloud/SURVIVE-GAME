@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>SURVIVE - 云端版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&display=swap" rel="stylesheet">
+    <style>
+        body { background: #000; margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; }
+        #game-container { position: relative; width: 900px; height: 650px; margin: auto; border: 4px solid #300; box-shadow: 0 0 50px rgba(255,0,0,0.2); }
+        canvas { display: block; background: #050505; cursor: crosshair; }
+
+        /* 主界面 */
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; display: flex; flex-direction: column; }
+        #menu-ui { background: radial-gradient(circle, #200 0%, #000 100%); }
+        
+        .main-title { font-family: 'Creepster', cursive; font-size: 140px; color: #8b0000; text-align: center; margin-top: 60px; text-shadow: 0 0 20px red; }
+        
+        /* 玩家信息与排行榜 */
+        .player-info { position: absolute; top: 20px; left: 30px; font-size: 18px; }
+        .status-tag { color: #f1c40f; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
+        .leaderboard { position: absolute; top: 120px; left: 30px; background: rgba(255,0,0,0.05); padding: 15px; border: 1px solid #400; width: 220px; border-radius: 8px; }
+        .leaderboard h4 { margin: 0 0 10px 0; color: #8b0000; font-family: 'Creepster', cursive; font-size: 24px; border-bottom: 1px solid #400; }
+
+        /* 按钮组 */
+        .btn-group { position: absolute; bottom: 50px; right: 50px; display: flex; flex-direction: column; align-items: flex-end; gap: 15px; }
+        .btn { cursor: pointer; border: none; background: none; color: #888; transition: 0.3s; text-transform: uppercase; font-weight: bold; }
+        .btn-start { font-family: 'Creepster', cursive; font-size: 80px; color: white; }
+        .btn-start:hover { color: #f00; transform: scale(1.05); text-shadow: 0 0 20px red; }
+        .btn-login { background: #4285F4; color: white; padding: 10px 20px; border-radius: 5px; font-size: 14px; margin-top: 10px; }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="menu-ui" class="overlay">
+        <div class="player-info">
+            <div id="user-name" class="status-tag">SUBJECT_UNKNOWN</div>
+            <div>PLAYER LEVEL: <span id="lvl-display" style="color:white">1</span></div>
+            <div>HIGH SCORE: <span id="hiscore-display" style="color:white">0</span></div>
+            <button id="login-btn" class="btn btn-login" onclick="loginWithGoogle()">GMAIL LOGIN</button>
+        </div>
+
+        <div class="leaderboard">
+            <h4>RANKINGS</h4>
+            <div id="rank-list" style="font-family:monospace; font-size:13px; color:#aaa">Syncing...</div>
+        </div>
+
+        <h1 class="main-title">SURVIVE</h1>
+        
+        <div class="btn-group">
+            <button class="btn" style="font-size:24px" onclick="openArmory()">Weapon Cache</button>
+            <button class="btn btn-start" onclick="startGame()">START</button>
+        </div>
+    </div>
+
+    <canvas id="game" width="900" height="650"></canvas>
+</div>
+
+<script type="module">
+    // --- 1. Firebase 核心模块 ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
+    // 您的专用配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyBimAEB2clwCHEq8Ol7MDAulTYjalaFCos",
+        authDomain: "game-c7a53.firebaseapp.com",
+        projectId: "game-c7a53",
+        storageBucket: "game-c7a53.firebasestorage.app",
+        messagingSenderId: "495592663876",
+        appId: "1:495592663876:web:354f9f76917fb63cea8511",
+        measurementId: "G-WPL8WPN67X"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // --- 2. 游戏数据变量 ---
+    let pData = { level: 1, highScore: 0, currentWeapon: 'M4A1' };
+    const WEAPONS = {
+        'M4A1': { dmg: 1, fr: 150, color: '#f1c40f', req: 1 },
+        'MP5': { dmg: 0.6, fr: 80, color: '#2ecc71', req: 2 }
+    };
+
+    // --- 3. 登录与同步逻辑 ---
+    window.loginWithGoogle = async () => {
+        const provider = new GoogleAuthProvider();
+        try { await signInWithPopup(auth, provider); } catch (e) { console.error("登录取消或失败", e); }
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            document.getElementById('user-name').innerText = user.displayName.toUpperCase();
+            document.getElementById('login-btn').classList.add('hidden');
+            const docRef = doc(db, "players", user.uid);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                pData = docSnap.data();
+                syncUI();
+            } else { saveToCloud(); }
+        }
+    });
+
+    async function saveToCloud() {
+        if (auth.currentUser) {
+            await setDoc(doc(db, "players", auth.currentUser.uid), {
+                ...pData, name: auth.currentUser.displayName, lastUpdate: Date.now()
+            }, { merge: true });
+        }
+    }
+
+    // 实时更新排行榜
+    const q = query(collection(db, "players"), orderBy("highScore", "desc"), limit(5));
+    onSnapshot(q, (snap) => {
+        const list = document.getElementById('rank-list');
+        list.innerHTML = '';
+        snap.forEach(doc => {
+            const d = doc.data();
+            list.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:5px">
+                <span>${(d.name || "Anon").split(' ')[0]}</span><span style="color:#8b0000">${d.highScore}</span></div>`;
+        });
+    });
+
+    function syncUI() {
+        document.getElementById('lvl-display').innerText = pData.level;
+        document.getElementById('hiscore-display').innerText = pData.highScore;
+    }
+
+    // --- 4. 武器库交互 ---
+    window.openArmory = () => {
+        let text = "武器库列表：\n";
+        Object.keys(WEAPONS).forEach(w => {
+            const lockStatus = pData.level >= WEAPONS[w].req ? "[已解锁]" : `[需要等级 ${WEAPONS[w].req}]`;
+            text += `- ${w} ${lockStatus}\n`;
+        });
+        const choice = prompt(text + "\n输入武器名称（如 MP5）来更换：");
+        if (choice && WEAPONS[choice.toUpperCase()]) {
+            const weaponKey = choice.toUpperCase();
+            if (pData.level >= WEAPONS[weaponKey].req) {
+                pData.currentWeapon = weaponKey;
+                alert("已装备: " + weaponKey);
+                saveToCloud();
+            } else {
+                alert("等级不足，无法装备！");
+            }
+        }
+    };
+
+    // --- 5. 简单战斗循环系统 ---
+    window.startGame = () => {
+        document.getElementById('menu-ui').classList.add('hidden');
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        let score = 0, enemies = [], bullets = [], lastShot = 0;
+        let p = { x: 450, y: 550 };
+        const weapon = WEAPONS[pData.currentWeapon];
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, 900, 650);
+            
+            // 简单的玩家跟随鼠标移动
+            canvas.onmousemove = (e) => {
+                const rect = canvas.getBoundingClientRect();
+                p.x = e.clientX - rect.left - 10;
+            };
+
+            // 自动射击逻辑
+            if (Date.now() - lastShot > weapon.fr) {
+                bullets.push({ x: p.x + 8, y: p.y, s: 8 });
+                lastShot = Date.now();
+            }
+
+            // 绘制玩家
+            ctx.fillStyle = "#fff"; ctx.fillRect(p.x, p.y, 20, 20);
+
+            // 绘制子弹
+            bullets.forEach((b, bi) => {
+                b.y -= b.s;
+                ctx.fillStyle = weapon.color; ctx.fillRect(b.x, b.y, 4, 10);
+                if (b.y < 0) bullets.splice(bi, 1);
+            });
+
+            // 敌人生成与移动
+            if (Math.random() < 0.05) enemies.push({ x: Math.random()*870, y: -20 });
+            enemies.forEach((e, ei) => {
+                e.y += 2 + (pData.level * 0.5); // 等级越高敌人越快
+                ctx.fillStyle = "#8b0000"; ctx.fillRect(e.x, e.y, 30, 30);
+                
+                // 碰撞检测
+                bullets.forEach((b, bi) => {
+                    if (b.x > e.x && b.x < e.x+30 && b.y > e.y && b.y < e.y+30) {
+                        enemies.splice(ei, 1);
+                        bullets.splice(bi, 1);
+                        score += 10;
+                    }
+                });
+
+                // 死亡判定
+                if (e.y > 650) {
+                    if (score > pData.highScore) {
+                        pData.highScore = score;
+                        // 达到 100 分升 2 级
+                        if (score >= 100) pData.level = Math.max(pData.level, 2);
+                        saveToCloud();
+                    }
+                    alert("死亡！最终分数: " + score);
+                    location.reload();
+                }
+            });
+
+            ctx.fillStyle = "white"; ctx.font = "20px Creepster";
+            ctx.fillText("SCORE: " + score, 20, 40);
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    };
+</script>
+</body>
+</html>
