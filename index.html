@@ -215,7 +215,8 @@
                     PIERCE: <b>0 (BASE)</b><br>
                     RANGE: <b>750px</b><br>
                     MAG: <b>30 / 45 (Lv10+)</b><br>
-                    RELOAD: <b>2s / 2.5s (Lv10+)</b>
+                    RELOAD: <b>2s / 2.5s (Lv10+)</b><br>
+                    UPGRADE COST: <b>×2 per level</b>
                 </div>
             </div>
             <div class="gun-card" id="gun-awm" onclick="selectGun('awm')">
@@ -228,7 +229,8 @@
                     PIERCE: <b>INFINITE</b><br>
                     RANGE: <b>3750px</b><br>
                     MAG: <b>5 / 10 (Lv10+)</b><br>
-                    RELOAD: <b>3s</b>
+                    RELOAD: <b>3s</b><br>
+                    UPGRADE COST: <b>×4 per level</b>
                 </div>
             </div>
             <div class="gun-card" id="gun-mp5" onclick="selectGun('mp5')">
@@ -243,7 +245,8 @@
                     SPREAD: <b>UP TO 10°</b><br>
                     MOVE SPD: <b>+20%</b><br>
                     MAG: <b>40 / 60 (Lv10+)</b><br>
-                    RELOAD: <b>2s / 2.5s (Lv10+)</b>
+                    RELOAD: <b>2s / 2.5s (Lv10+)</b><br>
+                    UPGRADE COST: <b>×3 per level</b>
                 </div>
             </div>
             <div class="gun-card" id="gun-pkm" onclick="selectGun('pkm')">
@@ -257,7 +260,8 @@
                     RANGE: <b>825px (+10%)</b><br>
                     MOVE SPD: <b>-30%</b><br>
                     MAG: <b>125 / 250 (Lv10+)</b><br>
-                    RELOAD: <b>5s / 7s (Lv10+)</b>
+                    RELOAD: <b>5s / 7s (Lv10+)</b><br>
+                    UPGRADE COST: <b>×2.5 per level</b>
                 </div>
             </div>
         </div>
@@ -348,10 +352,6 @@
     let selectedSaveId = null;
     let selectedGun = 'm4a1';
 
-    // Gun upgrade level — persists across all sessions (stored in player object)
-    // gunLevel: per-gun upgrade level 0-20
-    // gunXp: accumulated XP carried over (same as player.xp, shared)
-
     let player = {
         x: 450, y: 325, score: 0, hp: 100, maxHp: 100, shield: 0, shieldMax: 0,
         baseDamage: 0.6, critRate: 0.05, dodgeRate: 0.01,
@@ -361,20 +361,16 @@
         highRound: 1, level: 1, xp: 0,
         inventory: [],
         gunLevels: { m4a1: 0, awm: 0, mp5: 0, pkm: 0 },
-        // Ammo stock (reserve, not mag)
         ammoStock: { m4a1: 200, awm: 30, mp5: 300, pkm: 300 },
-        // Ammo purchase count resets each shop visit (per round)
         ammoBuyCount: { m4a1: 0, awm: 0, mp5: 0, pkm: 0 },
         moveSpeed: 3.6
     };
 
-    // Current ammo in magazine
     let magAmmo = 0;
     let isReloading = false;
-    let reloadTimeLeft = 0; // seconds remaining
+    let reloadTimeLeft = 0;
     let reloadStartTime = 0;
 
-    // Gun base configs (without upgrade multipliers)
     const GUN_BASE = {
         m4a1: { fireRate: 250, baseDamage: 0.6, range: 750, bulletSpeed: 18, pierce: 0, isAuto: true, magBase: 30, magLv10: 45, reloadBase: 2.0, reloadLv10: 2.5, moveSpeed: 3.6 },
         awm:  { fireRate: 1000, baseDamage: 5.0, range: 3750, bulletSpeed: 54, pierce: 999, isAuto: false, magBase: 5, magLv10: 10, reloadBase: 3.0, reloadLv10: 3.0, moveSpeed: 3.6 },
@@ -382,7 +378,10 @@
         pkm:  { fireRate: 313, baseDamage: 0.69, range: 825, bulletSpeed: 19.8, pierce: 1, isAuto: true, magBase: 125, magLv10: 250, reloadBase: 5.0, reloadLv10: 7.0, moveSpeed: 2.52 }
     };
 
-    // Ammo purchase table: [cost, amount]
+    // Per-gun XP cost multipliers: each level costs base * gunMult * 2^currentLevel
+    // M4A1 ×2, AWM ×4, MP5 ×3, PKM ×2.5
+    const GUN_XP_MULT = { m4a1: 2, awm: 4, mp5: 3, pkm: 2.5 };
+
     const AMMO_TABLE = [
         [1, 100], [5, 100], [10, 150], [20, 200], [40, 200]
     ];
@@ -391,11 +390,15 @@
         return player.gunLevels[selectedGun] || 0;
     }
 
+    // ─────────────────────────────────────────────────────────────────────────────
+    // MODIFIED: Gun upgrade XP cost
+    //   Cost(level) = floor(100 × GUN_XP_MULT[gun] × 2^currentLevel)
+    //   Every level requirement doubles, and each gun has its own base multiplier:
+    //     M4A1 ×2  |  AWM ×4  |  MP5 ×3  |  PKM ×2.5
+    // ─────────────────────────────────────────────────────────────────────────────
     function getGunUpgradeCost(currentLevel) {
-        // Uses player.level (account level) XP. Cost: level1=100, level2=150, ...
-        // Actually: upgrading gun costs account XP directly? 
-        // Rule: upgrade gun uses account XP. Cost for gun level 1: 100xp, level2: 100*1.5=150, etc.
-        return Math.floor(100 * Math.pow(1.5, currentLevel));
+        const mult = GUN_XP_MULT[selectedGun] || 2;
+        return Math.floor(100 * mult * Math.pow(2, currentLevel));
     }
 
     function applyGunUpgrades(gunKey) {
@@ -408,19 +411,16 @@
         let bspd = base.bulletSpeed;
         let pierce = base.pierce;
 
-        // Per level: damage * 1.1
         for (let i = 0; i < level; i++) {
             dmg *= 1.1;
         }
-        // Every 5 levels: all stats * 1.2
         const fiveSteps = Math.floor(level / 5);
         for (let i = 0; i < fiveSteps; i++) {
             dmg *= 1.2;
-            fr /= 1.2; // faster fire = lower ms
+            fr /= 1.2;
             range *= 1.2;
             bspd *= 1.2;
         }
-        // Every 10 levels: pierce +1, all stats * 1.2 (additional, on top of 5-level bonuses)
         const tenSteps = Math.floor(level / 10);
         for (let i = 0; i < tenSteps; i++) {
             pierce += 1;
@@ -430,7 +430,6 @@
             bspd *= 1.2;
         }
 
-        // AWM pierce stays "infinite" (999)
         if (gunKey === 'awm') pierce = 999;
 
         return { dmg, fr, range, bspd, pierce };
@@ -439,17 +438,14 @@
     function getMagSize(gunKey) {
         const level = player.gunLevels[gunKey] || 0;
         const base = GUN_BASE[gunKey];
-        if (gunKey === 'pkm' && level >= 10) {
-            // PKM at 10+ player can choose 250; we'll default to 250
-            return base.magLv10;
-        }
+        if (gunKey === 'pkm' && level >= 10) return base.magLv10;
         return level >= 10 ? base.magLv10 : base.magBase;
     }
 
     function getReloadTime(gunKey) {
         const level = player.gunLevels[gunKey] || 0;
         const base = GUN_BASE[gunKey];
-        if (gunKey === 'pkm' && level >= 10) return base.reloadLv10; // 7s
+        if (gunKey === 'pkm' && level >= 10) return base.reloadLv10;
         return level >= 10 ? base.reloadLv10 : base.reloadBase;
     }
 
@@ -465,7 +461,6 @@
         player.isAuto = base.isAuto;
         player.moveSpeed = base.moveSpeed;
 
-        // Fill mag if empty
         const mag = getMagSize(gunKey);
         magAmmo = mag;
         isReloading = false;
@@ -486,15 +481,12 @@
 
     chatInput.onfocus = () => { isMouseDown = false; keys = {}; };
 
-    // Auto-scroll chat to bottom
     function scrollChatToBottom() {
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     const chatQuery = query(collection(db, "global_chat"), orderBy("timestamp", "desc"), limit(30));
     onSnapshot(chatQuery, (snapshot) => {
-        // Check if user is near bottom before update
-        const wasAtBottom = chatMessages.scrollTop + chatMessages.clientHeight >= chatMessages.scrollHeight - 10;
         chatMessages.innerHTML = "";
         snapshot.docs.reverse().forEach(d => {
             const data = d.data();
@@ -503,7 +495,6 @@
             div.innerHTML = `<b>${data.user}:</b> ${data.text}`;
             chatMessages.appendChild(div);
         });
-        // Always scroll to bottom
         scrollChatToBottom();
     });
 
@@ -622,18 +613,12 @@
         player = data.player;
         player.score = data.score;
 
-        // Ensure new fields exist for old saves
         if (!player.gunLevels) player.gunLevels = { m4a1: 0, awm: 0, mp5: 0, pkm: 0 };
         if (!player.ammoStock) player.ammoStock = { m4a1: 200, awm: 30, mp5: 300, pkm: 300 };
         if (!player.ammoBuyCount) player.ammoBuyCount = { m4a1: 0, awm: 0, mp5: 0, pkm: 0 };
         if (!player.moveSpeed) player.moveSpeed = 3.6;
-        // IMPORTANT: gun levels are account-wide. The global `player.gunLevels` was already
-        // loaded from Firebase on login. We copy it into this save's player object so upgrades
-        // done in this session are preserved account-wide on next syncCloud().
-        // (We don't read gunLevels from the save — we always trust the Firebase copy.)
         player.gunLevels = window._accountGunLevels || player.gunLevels;
 
-        // Apply gun upgrades on top of base
         applyGunToPlayer(selectedGun);
 
         document.getElementById('gun-menu').style.display = 'none';
@@ -650,7 +635,6 @@
             document.getElementById('cloud-ui').style.opacity = '1';
             chatContainer.style.display = 'flex';
             player.shieldMax = player.shield;
-            // Fill mag from stock on first entry
             const mag0 = getMagSize(selectedGun);
             const stock0 = player.ammoStock[selectedGun] || 0;
             const take0 = Math.min(mag0, stock0);
@@ -706,7 +690,6 @@
                 player.highRound = d.highRound || 1;
                 player.level = d.level || 1;
                 player.xp = d.xp || 0;
-                // gunLevels are ACCOUNT-WIDE — always load from Firebase, never from save
                 if (d.gunLevels) {
                     player.gunLevels = d.gunLevels;
                     window._accountGunLevels = { ...d.gunLevels };
@@ -716,8 +699,6 @@
         }
     });
 
-    // Leaderboard with real-time current round + level tooltip
-    // We store currentRound in pixel_stats for real-time update
     onSnapshot(query(collection(db, "pixel_stats"), orderBy("highRound", "desc"), limit(5)), (s) => {
         const list = document.getElementById('rank-list');
         list.innerHTML = '';
@@ -725,7 +706,6 @@
             const data = d.data();
             const currentRound = data.currentRound || data.highRound || 1;
             const level = data.level || 1;
-            // Find highest gun level
             const gl = data.gunLevels || {};
             const gunNames = { m4a1: 'M4A1', awm: 'AWM', mp5: 'MP5', pkm: 'PKM' };
             let bestGun = 'NONE', bestLvl = 0;
@@ -764,7 +744,6 @@
         }
     }
 
-    // Sync current round live (not just on round end)
     async function syncCurrentRoundLive() {
         if (auth.currentUser) {
             await setDoc(doc(db, "pixel_stats", auth.currentUser.uid), {
@@ -811,7 +790,6 @@
         const cost = getGunUpgradeCost(level);
         const isMax = level >= 20;
 
-        // Compute total XP across all levels
         let totalXp = 0;
         for (let lv = 1; lv < player.level; lv++) {
             totalXp += Math.floor(50 * Math.pow(1.25, lv - 1));
@@ -839,7 +817,6 @@
             ${isMax ? `<div class="gun-maxlevel">★ MAX LEVEL ★</div>` : ''}
         `;
 
-        // Ammo panel
         const ammoDiv = buildAmmoPanel();
         div.appendChild(ammoDiv);
 
@@ -848,14 +825,12 @@
                 const lvl = player.gunLevels[gunKey] || 0;
                 const c = getGunUpgradeCost(lvl);
                 if (lvl < 20) {
-                    // Compute total accumulated XP across levels
                     let totalXp = 0;
                     for (let lv = 1; lv < player.level; lv++) {
                         totalXp += Math.floor(50 * Math.pow(1.25, lv - 1));
                     }
                     totalXp += player.xp;
-                    if (totalXp < c) return; // not enough total XP
-                    // Deduct cost from total, then recompute level+xp
+                    if (totalXp < c) return;
                     totalXp -= c;
                     let newLevel = 1;
                     while (totalXp >= Math.floor(50 * Math.pow(1.25, newLevel - 1))) {
@@ -868,7 +843,6 @@
                     window._accountGunLevels = { ...player.gunLevels };
                     updateNameUI();
                     updateXPBar();
-                    // Rebuild card
                     const newCard = buildGunUpgradeCard();
                     div.replaceWith(newCard);
                     pointsDisplay.innerText = player.score;
@@ -888,13 +862,11 @@
         panel.innerHTML = `<div class="ammo-panel-title">BUY AMMO</div>`;
 
         if (buyCount >= AMMO_TABLE.length) {
-            // All tiers bought
             const doneMsg = document.createElement('div');
             doneMsg.style.cssText = 'color:#555;font-size:11px;text-align:center;padding:4px;';
             doneMsg.textContent = 'MAX PURCHASES REACHED';
             panel.appendChild(doneMsg);
         } else {
-            // Only show current tier
             const [cost, amt] = AMMO_TABLE[buyCount];
             const btn = document.createElement('button');
             btn.className = 'ammo-buy-btn';
@@ -911,7 +883,6 @@
                 }
             };
             panel.appendChild(btn);
-            // Show next tier hint if exists
             if (buyCount + 1 < AMMO_TABLE.length) {
                 const [nc, na] = AMMO_TABLE[buyCount + 1];
                 const hint = document.createElement('div');
@@ -933,11 +904,9 @@
         pointsDisplay.innerText = player.score;
         cardsContainer.innerHTML = "";
 
-        // Leftmost: gun upgrade card
         const gunCard = buildGunUpgradeCard();
         cardsContainer.appendChild(gunCard);
 
-        // 3 skill cards
         for (let i = 0; i < 3; i++) {
             const skill = getRandomSkill();
             const card = document.createElement("div");
@@ -984,7 +953,6 @@
         chatContainer.style.display = 'flex';
         gameState = "TRANSITION";
 
-        // Re-apply gun with upgrades when entering battle
         applyGunToPlayer(selectedGun);
 
         player.shieldMax = player.shield;
@@ -992,9 +960,7 @@
             enemies = []; bullets = []; darts = []; dartSubIndex = 0; dartSubTimer = 0;
             timeLeft = 20; refreshUsed = 0; tempBuff.active = false;
             isReloading = false; reloadTimeLeft = 0;
-            // Reset ammo buy count each round so player can buy tier-1 again
             player.ammoBuyCount = { m4a1: 0, awm: 0, mp5: 0, pkm: 0 };
-            // Fill mag fully from stock at round start
             const mag = getMagSize(selectedGun);
             const needed = mag;
             const stock = player.ammoStock[selectedGun] || 0;
@@ -1065,9 +1031,9 @@
         if (isReloading) return;
         if (gameState !== "BATTLE") return;
         const mag = getMagSize(selectedGun);
-        if (magAmmo >= mag) return; // already full
+        if (magAmmo >= mag) return;
         const stock = player.ammoStock[selectedGun] || 0;
-        if (stock <= 0) return; // no ammo in reserve
+        if (stock <= 0) return;
         isReloading = true;
         reloadTimeLeft = getReloadTime(selectedGun);
         reloadStartTime = Date.now();
@@ -1115,7 +1081,6 @@
             let dx = mousePos.x - player.x, dy = mousePos.y - player.y, dist = Math.hypot(dx, dy);
             if (dist === 0) return;
 
-            // MP5 spread: random angle offset up to 10°
             let angle = Math.atan2(dy, dx);
             if (selectedGun === 'mp5') {
                 const spreadRad = (Math.random() - 0.5) * 2 * (10 * Math.PI / 180);
@@ -1216,13 +1181,11 @@
         if (gameState !== "BATTLE") return;
         let now = Date.now();
 
-        // Live sync current round to leaderboard
         if (round !== lastLiveSyncRound) {
             lastLiveSyncRound = round;
             syncCurrentRoundLive();
         }
 
-        // Reload timer
         if (isReloading) {
             const elapsed = (now - reloadStartTime) / 1000;
             reloadTimeLeft = Math.max(0, getReloadTime(selectedGun) - elapsed);
@@ -1231,7 +1194,6 @@
             }
         }
 
-        // Dart system
         if (player.dartLevel > 0) {
             const intervalPerDart = player.dartCooldown / player.dartLevel;
             if (now - dartSubTimer > intervalPerDart) {
@@ -1290,7 +1252,6 @@
         player.x = Math.max(20, Math.min(880, player.x));
         player.y = Math.max(20, Math.min(630, player.y));
 
-        // Dart updates
         for (let i = darts.length - 1; i >= 0; i--) {
             let d = darts[i];
 
@@ -1340,7 +1301,6 @@
             d.y = by + Math.sin(angle + Math.PI / 2) * offset;
         }
 
-        // Bullet updates with multi-step interpolation
         for (let i = bullets.length - 1; i >= 0; i--) {
             let b = bullets[i];
             let oldX = b.x, oldY = b.y;
@@ -1377,9 +1337,7 @@
                 e.atkTimer = now;
             }
             if (e.hp <= 0) {
-                // Score = enemy's original tier HP (= tier)
                 player.score += e.tier;
-                // XP: +1 per kill regardless of tier
                 player.xp += 1;
                 while (player.xp >= 50 * Math.pow(1.25, player.level - 1)) {
                     player.xp -= 50 * Math.pow(1.25, player.level - 1);
@@ -1426,7 +1384,6 @@
             ctx.fillStyle = "#f00"; ctx.fillRect(e.x, e.y - 12, 20 * (e.hp / e.maxHp), 5);
         });
 
-        // Player — distinct white square
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(player.x, player.y, 20, 20);
         ctx.strokeStyle = "#00aaff";
@@ -1438,13 +1395,11 @@
         ctx.font = "bold 20px monospace";
         ctx.fillText(`WAVE: ${round} | PT: ${player.score} | TIME: ${timeLeft}s`, 20, 35);
 
-        // HP bar
         ctx.fillStyle = "#333"; ctx.fillRect(20, 55, 250, 20);
         ctx.fillStyle = "#f44"; ctx.fillRect(20, 55, 250 * (player.hp / player.maxHp), 20);
         ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial";
         ctx.fillText(`HP: ${Math.ceil(player.hp)} / ${player.maxHp}`, 30, 70);
 
-        // Shield bar
         if (player.shield > 0) {
             const sMax = Math.max(player.shield, player.shieldMax);
             ctx.fillStyle = "#111"; ctx.fillRect(20, 85, 250, 15);
@@ -1452,14 +1407,12 @@
             ctx.fillStyle = "#fff"; ctx.fillText(`SHIELD: ${Math.ceil(player.shield)}`, 30, 97);
         }
 
-        // Ammo display
         const ammoY = (player.shield > 0) ? 115 : 100;
         const stock = player.ammoStock[selectedGun] || 0;
         ctx.fillStyle = "#fff";
         ctx.font = "bold 12px monospace";
         ctx.fillText(`${selectedGun.toUpperCase()} AMMO: ${magAmmo} / ${stock}`, 20, ammoY);
 
-        // Reload indicator
         if (isReloading) {
             ctx.fillStyle = "#f1c40f";
             ctx.font = "bold 13px monospace";
